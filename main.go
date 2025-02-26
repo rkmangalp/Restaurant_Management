@@ -4,9 +4,10 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rkmangalp/restaurant_management/database"
-	"github.com/rkmangalp/restaurant_management/middleware"
-	"github.com/rkmangalp/restaurant_management/routes"
+	"github.com/rkmangalp/Restaurant_Management/database"
+	"github.com/rkmangalp/Restaurant_Management/middleware"
+	"github.com/rkmangalp/Restaurant_Management/routes"
+
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
