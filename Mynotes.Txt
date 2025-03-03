@@ -1,0 +1,1 @@
+This follows MVC project structure
