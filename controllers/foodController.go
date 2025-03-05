@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/go-playground/validator/v10"
+	"github.com/gin-gonic/gin"               // Gin framework for handling HTTP requests
+	"github.com/go-playground/validator/v10" // Input validation package
 	"github.com/rkmangalp/Restaurant_Management/database"
 	"github.com/rkmangalp/Restaurant_Management/models"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson" // BSON format for MongoDB interactions
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -22,9 +22,15 @@ import (
 var foodCollection *mongo.Collection = database.OpenCollection(database.Client, "food")
 var validate = validator.New()
 
+// GetFoods returns a function (gin.HandlerFunc) to be used as a route handler in Gin.
+// c *gin.Context provides the HTTP request context, allowing access to query params,
+// response writing, etc.
+
 func GetFoods() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
+		// Creates a context with a timeout of 100 seconds to prevent MongoDB operations from
+		// running indefinitely.
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
@@ -92,24 +98,35 @@ func GetFoods() gin.HandlerFunc {
 	}
 }
 
+// returns food
+
 func GetFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
+
+		// Creates a context.Context with a 100-second timeout.
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+
+		// Retrieves food_id from the URL path
 		foodId := c.Param("food_id")
 
 		var food models.Food
 
+		// mongo query which searches for the document where food_id matches the given foodId
 		err := foodCollection.FindOne(ctx, bson.M{"food_id": foodId}).Decode(&food)
 		defer cancel()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error while fetching the food item"})
 		}
+
+		// Sending the Food Item as JSON Response
 		c.JSON(http.StatusOK, food)
 	}
 }
 
 func CreateFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
+
+		// Creates a context.Context with a 100-second timeout.
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
 		var menu models.Menu
