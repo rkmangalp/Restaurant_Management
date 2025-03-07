@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"math"
 	"net/http"
@@ -77,7 +76,10 @@ func GetFoods() gin.HandlerFunc {
 		}
 
 		// Execute the aggregation pipeline
-		result, err := foodCollection.Aggregate(ctx, mongo.Pipeline{matchStage, groupStage, projectStage})
+		result, err := foodCollection.Aggregate(
+			ctx, mongo.Pipeline{
+				matchStage, groupStage, projectStage,
+			})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occurred while listing items"})
 			return
@@ -128,6 +130,7 @@ func CreateFood() gin.HandlerFunc {
 
 		// Creates a context.Context with a 100-second timeout.
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 
 		var menu models.Menu
 		var food models.Food
@@ -146,7 +149,7 @@ func CreateFood() gin.HandlerFunc {
 		err := menuCollections.FindOne(ctx, bson.M{"menu_id": food.Menu_id}).Decode(&menu)
 		defer cancel()
 		if err != nil {
-			msg := fmt.Sprintf("menu was not found")
+			msg := "menu was not found"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
@@ -159,11 +162,11 @@ func CreateFood() gin.HandlerFunc {
 
 		result, insertErr := foodCollection.InsertOne(ctx, food)
 		if insertErr != nil {
-			msg := fmt.Sprintf("food item was not created")
+			msg := "food item was not created"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
-		defer cancel()
+
 		c.JSON(http.StatusOK, result)
 
 	}
@@ -182,6 +185,8 @@ func toFixed(num float64, precision int) float64 {
 func UpdateFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
 		var menu models.Menu
 		var food models.Food
 
@@ -210,7 +215,7 @@ func UpdateFood() gin.HandlerFunc {
 			err := menuCollections.FindOne(ctx, bson.M{"menu_id": food.Menu_id}).Decode(&menu)
 			defer cancel()
 			if err != nil {
-				msg := fmt.Sprintf("message: Menu not found")
+				msg := "message: Menu not found"
 				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 				return
 			}
@@ -237,11 +242,11 @@ func UpdateFood() gin.HandlerFunc {
 		)
 
 		if err != nil {
-			msg := fmt.Sprintf("error while updating food")
+			msg := "error while updating food"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
-		defer cancel()
+
 		c.JSON(http.StatusOK, result)
 
 	}
