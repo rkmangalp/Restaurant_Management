@@ -184,12 +184,12 @@ func ItemsByOrder(id string) (orderItems []primitive.M, err error) {
 func GetOrderItem() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 
 		orderItemId := c.Param("order_item_id")
 		var orderItem models.OrderItem
 
 		err := OrderitemCollection.FindOne(ctx, bson.M{"order_item_id": orderItemId}).Decode(&orderItem)
-		defer cancel()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error while listing order item"})
 			return
@@ -212,7 +212,7 @@ func UpdateOrderItem() gin.HandlerFunc {
 		var updateObj primitive.D
 
 		if orderItem.Unit_price != nil {
-			updateObj = append(updateObj, bson.E{Key: "unit_price", Value: *&orderItem.Unit_price})
+			updateObj = append(updateObj, bson.E{Key: "unit_price", Value: orderItem.Unit_price})
 		}
 
 		if orderItem.Quantity != nil {

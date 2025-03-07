@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -61,6 +60,7 @@ func CreateMenu() gin.HandlerFunc {
 
 		var menu models.Menu
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 		if err := c.BindJSON(&menu); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
@@ -79,11 +79,11 @@ func CreateMenu() gin.HandlerFunc {
 
 		result, err := menuCollections.InsertOne(ctx, menu)
 		if err != nil {
-			msg := fmt.Sprintf("error while creating menu item")
+			msg := "error while creating menu item"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
-		defer cancel()
+
 		c.JSON(http.StatusOK, result)
 	}
 }

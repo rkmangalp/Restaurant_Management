@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -54,6 +53,7 @@ func GetOrder() gin.HandlerFunc {
 func CreateOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 		var table models.Table
 		var order models.Order
 
@@ -72,7 +72,7 @@ func CreateOrder() gin.HandlerFunc {
 			err := tableCollection.FindOne(ctx, bson.M{"table": order.Table_id}).Decode(&table)
 			defer cancel()
 			if err != nil {
-				msg := fmt.Sprintf("message: Table was not found")
+				msg := "message: Table was not found"
 				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 				return
 			}
@@ -86,12 +86,11 @@ func CreateOrder() gin.HandlerFunc {
 		result, err := orderCollection.InsertOne(ctx, order)
 
 		if err != nil {
-			msg := fmt.Sprintf("order item was not created")
+			msg := "order item was not created"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
 
-		defer cancel()
 		c.JSON(http.StatusOK, result)
 
 	}
@@ -100,6 +99,7 @@ func CreateOrder() gin.HandlerFunc {
 func UpdateOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 		var table models.Table
 		var order models.Order
 
@@ -115,7 +115,7 @@ func UpdateOrder() gin.HandlerFunc {
 			err := menuCollections.FindOne(ctx, bson.M{"table_id": order.Table_id}).Decode(&table)
 			defer cancel()
 			if err != nil {
-				msg := fmt.Sprintf("message: table not found")
+				msg := "message: table not found"
 				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 				return
 			}
@@ -141,11 +141,11 @@ func UpdateOrder() gin.HandlerFunc {
 			)
 
 			if err != nil {
-				msg := fmt.Sprintf("error while updating order")
+				msg := "error while updating order"
 				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 				return
 			}
-			defer cancel()
+
 			c.JSON(http.StatusOK, result)
 		}
 	}

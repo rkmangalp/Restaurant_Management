@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -63,6 +62,9 @@ func GetInvoice() gin.HandlerFunc {
 		var invoiceView InvoiceViewFormat
 
 		allOrderItems, err := ItemsByOrder(invoice.Order_id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
 		invoiceView.Order_id = invoice.Order_id
 		invoiceView.Payment_due = invoice.Payment_due_date
 
@@ -72,7 +74,7 @@ func GetInvoice() gin.HandlerFunc {
 		}
 
 		invoiceView.Invoice_id = invoice.Invoice_id
-		invoiceView.Payment_status = *&invoice.Payment_status
+		invoiceView.Payment_status = invoice.Payment_status
 		invoiceView.Payment_due = allOrderItems[0]["payment_due"]
 		invoiceView.Table_number = allOrderItems[0]["table_number"]
 		invoiceView.Order_details = allOrderItems[0]["order_items"]
@@ -85,6 +87,7 @@ func GetInvoice() gin.HandlerFunc {
 func CreateInvoice() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 		var invoice models.Invoice
 
 		if err := c.BindJSON(&invoice); err != nil {
@@ -95,7 +98,7 @@ func CreateInvoice() gin.HandlerFunc {
 
 		err := orderCollection.FindOne(ctx, bson.M{"order_id": invoice.Order_id}).Decode(&order)
 		if err != nil {
-			msg := fmt.Sprintf("message: order was not found")
+			msg := "message: order was not found"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
@@ -116,11 +119,11 @@ func CreateInvoice() gin.HandlerFunc {
 		}
 		result, inserterr := invoiceCollection.InsertOne(ctx, invoice)
 		if inserterr != nil {
-			msg := fmt.Sprintf("invoice not created")
+			msg := "invoice not created"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
-		defer cancel()
+
 		c.JSON(http.StatusOK, result)
 	}
 }
@@ -128,6 +131,7 @@ func CreateInvoice() gin.HandlerFunc {
 func UpdateInvoice() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 
 		var invoice models.Invoice
 		invoiceId := c.Param("invoice_id")
@@ -172,7 +176,7 @@ func UpdateInvoice() gin.HandlerFunc {
 			&opt,
 		)
 		if err != nil {
-			msg := fmt.Sprintf("invoice item update failed")
+			msg := "invoice item update failed"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
