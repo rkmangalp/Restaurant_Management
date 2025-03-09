@@ -25,6 +25,7 @@ func GetUsers() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
+		// Extract query parameters for pagination
 		recordPerPage, err := strconv.Atoi(c.Query("recordPerPage"))
 		if err != nil || recordPerPage < 1 {
 			recordPerPage = 10
@@ -35,34 +36,52 @@ func GetUsers() gin.HandlerFunc {
 			page = 1
 		}
 
+		// calculate the starting index
 		startIndex := (page - 1) * recordPerPage
 
-		if queryStartIndex := c.Query("startIndex"); queryStartIndex != "" {
-			startIndex, _ = strconv.Atoi(queryStartIndex) // ✅ Override only if provided
-		}
+		// mongoDB aggregation pipeline
+		matchStage := bson.D{{Key: "$match", Value: bson.D{}}}
 
-		matchStage := bson.D{{Key: "$match", Value: bson.D{{}}}}
+		groupStage := bson.D{
+			{Key: "$group", Value: bson.D{
+				{Key: "_id", Value: nil},                                      // Grouping all users
+				{Key: "total_count", Value: bson.D{{Key: "$sum", Value: 1}}},  // Count total users
+				{Key: "data", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}}, // Push all users into "data"
+			}},
+		}
 		projectStage := bson.D{
 			{Key: "$project", Value: bson.D{
-				{Key: "_id", Value: 0},
+				{Key: "_id", Value: 0}, // Exclude _id
 				{Key: "total_count", Value: 1},
-				{Key: "user_itenms", Value: bson.D{
-					{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}}},
-				},
+				{Key: "users", Value: bson.D{
+					{Key: "$slice", Value: []any{"$data", startIndex, recordPerPage}}, // Apply pagination
+				}},
 			}},
 		}
 
+		// Execute the aggregation query
 		result, err := userCollection.Aggregate(ctx, mongo.Pipeline{
-			matchStage, projectStage})
+			matchStage, groupStage, projectStage})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error while listing user items"})
+			return
 		}
 
+		// Decode the result
 		var allUsers []bson.M
 		if err = result.All(ctx, &allUsers); err != nil {
 			log.Fatal(err)
 		}
-		c.JSON(http.StatusOK, allUsers[0])
+
+		// If no users found, return empty list
+		if len(allUsers) == 0 {
+			c.JSON(http.StatusOK, gin.H{"users": []bson.M{}})
+			return
+		}
+
+		// Return users with pagination info
+		c.JSON(http.StatusOK, gin.H{"users": allUsers[0]})
+
 	}
 }
 

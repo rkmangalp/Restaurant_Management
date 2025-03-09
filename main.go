@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/rkmangalp/Restaurant_Management/database"
-	"github.com/rkmangalp/Restaurant_Management/middleware"
-	"github.com/rkmangalp/Restaurant_Management/routes"
+	middleware "github.com/rkmangalp/Restaurant_Management/middleware"
+	routes "github.com/rkmangalp/Restaurant_Management/routes"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -23,6 +23,7 @@ func main() {
 	router.Use(gin.Logger())
 	routes.UserRoutes(router)
 	router.Use(middleware.Authentication())
+	router.SetTrustedProxies(nil)
 
 	routes.FoodRoutes(router)
 	routes.MenuRoutes(router)
