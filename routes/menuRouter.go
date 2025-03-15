@@ -10,4 +10,5 @@ func MenuRoutes(incomingRoutes *gin.Engine) {
 	incomingRoutes.GET("/menus/:menu_id", controller.GetMenu())
 	incomingRoutes.POST("menus", controller.CreateMenu())
 	incomingRoutes.PATCH("/menus", controller.UpdateMenu())
+	incomingRoutes.DELETE("/menus/:menu_id", controller.DeleteMenu())
 }

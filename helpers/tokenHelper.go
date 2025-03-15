@@ -39,7 +39,7 @@ func GenerateAllTokens(email string, firstName string, lastName string, uid stri
 
 	refreshClaims := &SignedDetails{
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Local().Add(time.Hour * time.Duration(48)).Unix(),
+			ExpiresAt: time.Now().Local().Add(time.Hour * time.Duration(128)).Unix(),
 		},
 	}
 

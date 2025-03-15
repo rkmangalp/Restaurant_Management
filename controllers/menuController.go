@@ -58,33 +58,64 @@ func GetMenu() gin.HandlerFunc {
 func CreateMenu() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
-		var menu models.Menu
+		var menus []models.Menu
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
-		if err := c.BindJSON(&menu); err != nil {
+
+		// ✅ Bind JSON request body
+		if err := c.BindJSON(&menus); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		validationErr := validate.Struct(menu)
-		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			return
+		var insertMenus []gin.H
+
+		// ✅ Iterate through each menu item in the request
+		for i := range menus {
+
+			//validate menustruct
+			validationErr := validate.Struct(menus[i])
+			if validationErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+				return
+			}
+
+			// ✅ Check if a menu with the same category already exists
+			var existingMenu models.Menu
+
+			err := menuCollections.FindOne(ctx, gin.H{"menu_id": menus[i].Menu_id}).Decode(&existingMenu)
+			if err == nil {
+
+				// menu exists, assign the existing "menu_id"
+				menus[i].Menu_id = existingMenu.Menu_id
+			} else {
+				// Menu does not exists, create a new one
+				menus[i].ID = primitive.NewObjectID()
+				menus[i].Menu_id = menus[i].ID.Hex()
+				menus[i].Created_at, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+				menus[i].Updated_at, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+
+				// Append assigned menu details
+				_, insertErr := menuCollections.InsertOne(ctx, menus[i])
+				if insertErr != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "error while instering"})
+					return
+				}
+			}
+
+			// Append assigned menu details
+			insertMenus = append(insertMenus, gin.H{
+				"category": menus[i].Category,
+				"menu_id":  menus[i].Menu_id,
+			})
+
 		}
 
-		menu.Created_at, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		menu.Updated_at, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		menu.ID = primitive.NewObjectID()
-		menu.Menu_id = menu.ID.Hex()
-
-		result, err := menuCollections.InsertOne(ctx, menu)
-		if err != nil {
-			msg := "error while creating menu item"
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-			return
-		}
-
-		c.JSON(http.StatusOK, result)
+		// Return response with assigned `menu_id`s
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Menu processed successfully",
+			"menus":   insertMenus,
+		})
 	}
 }
 
@@ -152,6 +183,32 @@ func UpdateMenu() gin.HandlerFunc {
 			defer cancel()
 			c.JSON(http.StatusOK, result)
 		}
+
+	}
+}
+
+func DeleteMenu() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		menuID := c.Param("menu_id")
+
+		// ✅ Check if menu exists before deleting
+		var menu models.Menu
+		err := menuCollections.FindOne(ctx, bson.M{"menu_id": menuID}).Decode(&menu)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "menu not found"})
+			return
+		}
+
+		// ✅ Delete associated food items
+		_, err = menuCollections.DeleteOne(ctx, bson.M{"menu_id": menuID})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete menu"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Menu deleted successfully"})
 
 	}
 }
