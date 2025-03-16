@@ -127,48 +127,87 @@ func GetFood() gin.HandlerFunc {
 
 func CreateFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
-
-		// Creates a context.Context with a 100-second timeout.
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		var menu models.Menu
-		var food models.Food
-
-		if err := c.BindJSON(&food); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		var foods []models.Food
+		if err := c.BindJSON(&foods); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 			return
 		}
 
-		validationErr := validate.Struct(food)
-		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			return
+		var insertedFoods []gin.H
+
+		for i := range foods {
+			// ✅ Validate required fields
+			if validationErr := validate.Struct(foods[i]); validationErr != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+				return
+			}
+
+			// ✅ If `menu_id` is missing or invalid, fetch from category
+			if foods[i].Menu_id == nil || *foods[i].Menu_id == "" {
+				var existingMenu models.Menu
+
+				// ✅ Try to find an existing menu by category
+				err := menuCollections.FindOne(ctx, bson.M{"category": foods[i].Category}).Decode(&existingMenu)
+
+				if err == nil {
+					// ✅ Found existing menu, assign `menu_id`
+					foods[i].Menu_id = &existingMenu.Menu_id
+				} else {
+					// ✅ No menu found, create a new menu for the category
+					newMenu := models.Menu{
+						ID:         primitive.NewObjectID(),
+						Menu_id:    primitive.NewObjectID().Hex(),
+						Name:       foods[i].Category + " Menu",
+						Category:   foods[i].Category,
+						Created_at: time.Now(),
+						Updated_at: time.Now(),
+					}
+
+					_, err := menuCollections.InsertOne(ctx, newMenu)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create menu for category: " + foods[i].Category})
+						return
+					}
+
+					// ✅ Assign new `menu_id` to food item
+					foods[i].Menu_id = &newMenu.Menu_id
+				}
+			}
+
+			// ✅ Generate metadata for food item
+			foods[i].ID = primitive.NewObjectID()
+			foods[i].Food_id = foods[i].ID.Hex()
+			foods[i].Created_at = time.Now()
+			foods[i].Updated_at = time.Now()
+
+			// ✅ Round price
+			var num = toFixed(*foods[i].Price, 2)
+			foods[i].Price = &num
+
+			// ✅ Insert food item into MongoDB
+			_, insertErr := foodCollection.InsertOne(ctx, foods[i])
+			if insertErr != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error inserting food: " + *foods[i].Name})
+				return
+			}
+
+			insertedFoods = append(insertedFoods, gin.H{
+				"name":      foods[i].Name,
+				"food_id":   foods[i].Food_id,
+				"menu_id":   foods[i].Menu_id,
+				"price":     foods[i].Price,
+				"image_url": foods[i].Food_image,
+			})
 		}
 
-		err := menuCollections.FindOne(ctx, bson.M{"menu_id": food.Menu_id}).Decode(&menu)
-		defer cancel()
-		if err != nil {
-			msg := "menu was not found"
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-			return
-		}
-		food.Created_at, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		food.Updated_at, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		food.ID = primitive.NewObjectID()
-		food.Food_id = food.ID.Hex()
-		var num = toFixed(*food.Price, 2)
-		food.Price = &num
-
-		result, insertErr := foodCollection.InsertOne(ctx, food)
-		if insertErr != nil {
-			msg := "food item was not created"
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-			return
-		}
-
-		c.JSON(http.StatusOK, result)
-
+		// ✅ Return response with inserted foods
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Food items added successfully",
+			"foods":   insertedFoods,
+		})
 	}
 }
 
