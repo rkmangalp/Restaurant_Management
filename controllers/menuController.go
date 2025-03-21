@@ -39,19 +39,40 @@ func GetMenus() gin.HandlerFunc {
 	}
 }
 
-func GetMenu() gin.HandlerFunc {
+func GetMenuByID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		menuId := c.Param("menu_id")
+		defer cancel()
 
+		menuID := c.Param("menu_id")
 		var menu models.Menu
 
-		err := foodCollection.FindOne(ctx, bson.M{"menu_id": menuId}).Decode(&menu)
-		defer cancel()
+		// ✅ Fetch the menu details
+		err := menuCollections.FindOne(ctx, bson.M{"menu_id": menuID}).Decode(&menu)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error while fetching the menu"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Menu not found"})
+			return
 		}
-		c.JSON(http.StatusOK, menu)
+
+		// ✅ Fetch all food items in this menu
+		cursor, err := foodCollection.Find(ctx, bson.M{"menu_id": menuID})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching food items"})
+			return
+		}
+
+		// ✅ Decode all food items into a slice
+		var foodItems []models.Food
+		if err = cursor.All(ctx, &foodItems); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error decoding food items"})
+			return
+		}
+
+		// ✅ Return menu details along with all its foods
+		c.JSON(http.StatusOK, gin.H{
+			"menu":  menu,
+			"foods": foodItems,
+		})
 	}
 }
 
