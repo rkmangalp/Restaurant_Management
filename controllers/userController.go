@@ -18,7 +18,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var userCollection *mongo.Collection = database.OpenCollection(database.Client, "user")
+var userCollection *mongo.Collection = database.OpenCollection(database.Client, "users")
 
 func GetUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -114,6 +114,16 @@ func SignUp() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		if user.UserType == "" {
+			user.UserType = "USER"
+		} else if user.UserType == "ADMIN" {
+			// ensure only ADMIN can create a another ADMIN
+			requestType, exists := c.Get("user_type") // get user role from JWT
+			if !exists || requestType != "ADMIN" {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Only ADMIN can create another ADMIN"})
+				return
+			}
+		}
 
 		// validate the data based on user struct
 		validateErr := validate.Struct(user)
@@ -159,14 +169,24 @@ func SignUp() gin.HandlerFunc {
 		user.Refresh_token = &refreshtoken
 
 		// if all ok, then insert this new user into the user collection
-		resultInsetionNumber, insertErr := userCollection.InsertOne(ctx, user)
+		_, insertErr := userCollection.InsertOne(ctx, user)
 		if insertErr != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "User item not created"})
 			return
 		}
 
 		// return STATUSOK and send the result back
-		c.JSON(http.StatusOK, resultInsetionNumber)
+		c.JSON(http.StatusOK, gin.H{
+			"message":       "User created sucessfully",
+			"user_id":       user.User_id,
+			"first_name":    user.First_name,
+			"last_name":     user.Last_name,
+			"email":         user.Email,
+			"phone":         user.Phone,
+			"user_type":     user.UserType,
+			"token":         user.Token,
+			"refresh_token": user.Refresh_token,
+		})
 	}
 }
 
